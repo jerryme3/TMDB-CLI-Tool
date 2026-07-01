@@ -1,6 +1,6 @@
 package com.tmdb.jerme.reader;
 
-//it reads the API from the .env file
+//it reads the APIs from the .env file
 
 import io.github.cdimascio.dotenv.Dotenv;
 
@@ -10,6 +10,10 @@ public class APIReader {
 
     public static String getAPIKey() {
         return READER.get("API_KEY");
+    }
+
+    public static String getTMDBToken() {
+        return READER.get("TMDB_TOKEN");
     }
 
     public static String getAPI(String action) {

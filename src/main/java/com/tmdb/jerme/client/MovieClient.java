@@ -1,6 +1,7 @@
 package com.tmdb.jerme.client;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.tmdb.jerme.models.Movie;
 import com.tmdb.jerme.reader.APIReader;
@@ -11,7 +12,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MovieClient {
 
@@ -23,7 +26,7 @@ public class MovieClient {
         this.gson  = new Gson();
     }
 
-    public List<Movie> getMovies(String action) {
+    public List<Movie> getMovies(String genre, String action) {
         String apiToExecute = switch (action) {
             case "np"      -> APIReader.getAPI("NOW_PLAYING_API");
             case "popular" -> APIReader.getAPI("POPULAR_API");
@@ -33,11 +36,12 @@ public class MovieClient {
         };
 
         var listOfMovies = new ArrayList<Movie>();
+        var mapOfGenres  = mapGenres();
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(apiToExecute))
                 .header("accept", "application/json")
-                .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NGQ2OTBiOWExZGUxOGViMjc4MmQyMjQ3ZTkwNWExYyIsIm5iZiI6MTc4Mjg2OTIyOS4xMTgsInN1YiI6IjZhNDQ2Y2VkYjFlNDM2NWY4MGM0N2IzZiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.3jX8bZZiYjKDSWgIVLhZoXYiW4swrSu66xiteVy30tw")
+                .header("Authorization", "Bearer " + APIReader.getTMDBToken())
                 .method("GET", HttpRequest.BodyPublishers.noBody())
                 .build();
 
@@ -48,7 +52,8 @@ public class MovieClient {
             var arrObj    = root.getAsJsonArray("results");
 
             for (var element : arrObj) {
-                var movie = element.getAsJsonObject();
+                var genreIds = new ArrayList<Integer>();
+                var movie    = element.getAsJsonObject();
 
                 var title       = movie.get("title").getAsString();
                 var releaseDate = movie.get("release_date").getAsString();
@@ -56,17 +61,66 @@ public class MovieClient {
                 var rating      = movie.get("vote_average").getAsDouble();
                 var votes       = movie.get("vote_count").getAsInt();
                 var isAdult     = movie.get("adult").getAsBoolean();
+                var genreCode   = movie.get("genre_ids").getAsJsonArray();
+
+                for (var id : genreCode) {
+                    genreIds.add(id.getAsInt()); //extraction of codes will be used to extract the real string value of its genre
+                }
 
                 listOfMovies.add(new Movie(
-                   title, releaseDate, overview, rating, votes, isAdult
+                   title, releaseDate, overview, rating, votes, isAdult, filterGenre(genreIds, mapOfGenres)
                 ));
             }
 
-            return listOfMovies;
+            return listOfMovies
+                    .stream()
+                    .filter(movie -> movie.genres().contains(genre.trim().toLowerCase()))
+                    .toList();
+
 
         } catch (IOException | InterruptedException e) {
             throw new IllegalArgumentException("Error: ", e);
         }
+    }
+
+    public Map<Integer, String> mapGenres() {
+        var mapOfGenres = new HashMap<Integer, String>();
+
+        var request = HttpRequest
+                .newBuilder()
+                .uri(URI.create(APIReader.getAPI("GENRE_MAP_API")))
+                .header("accept", "application/json")
+                .header("Authorization", "Bearer " + APIReader.getTMDBToken())
+                .method("GET", HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        try {
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            var root       = gson.fromJson(response.body(), JsonObject.class);
+            var arrWithMap = root.getAsJsonArray("genres");
+
+            for (JsonElement genre : arrWithMap) {
+                var curMap = genre.getAsJsonObject();
+
+                mapOfGenres.put(curMap.get("id").getAsInt(), curMap.get("name").getAsString().toLowerCase());
+            }
+
+            return mapOfGenres;
+
+        } catch (IOException | InterruptedException e) {
+            throw new IllegalArgumentException("Error: ", e);
+        }
+    }
+
+    public List<String> filterGenre(List<Integer> genreIds, Map<Integer, String> mapOfGenres) {
+        var genres = new ArrayList<String>();
+
+        for (int id : genreIds) {
+            genres.add(mapOfGenres.get(id).toLowerCase());
+        }
+
+        return genres;
     }
 
 }
