@@ -11,7 +11,7 @@
 2. np      - shows the currently playing movies
 3. popular - shows all the popular movies of all time
 4. upc     - shows the upcoming moviess
-5. top     - show the current top movies
+5. top     - shows the current top movies
 
 #Project Link
 - https://roadmap.sh/projects/tmdb-cli
